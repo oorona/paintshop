@@ -1,0 +1,48 @@
+Gemini AI Image Editor - Technical Specifications
+
+Capabilities:
+- Text-to-image generation using Gemini models (Gemini 2.5 Flash Image, Gemini 3 Pro Image).
+- Image editing: masked edits, inpainting, selective region changes based on mask inputs.
+- Multi-image composition: combine up to 14 input images (Gemini 3 Pro limitation).
+- Style transfer: transfer visual style from a reference image with adjustable strength.
+- Semantic segmentation: returns per-object mask (PNG base64) and bounding-box metadata.
+- Object detection: returns normalized bounding boxes in [ymin, xmin, ymax, xmax] scaled 0-1000.
+- Image understanding: captioning and Visual Question Answering (VQA) via multimodal LLM calls.
+- Prompt assistance: LLM-based prompt optimization templates for generation, editing, style descriptions, and segmentation prompts.
+- Workflow automation: predefined workflows chain segmentation, editing and style steps.
+- Layer model: layered editing with mask operations and blend modes.
+- Session analytics: per-session token counting, cost estimation, request logs.
+
+API Endpoints:
+- POST /api/generate -> text-to-image generation
+- POST /api/edit -> edit with prompt and optional mask
+- POST /api/edit/multi -> multi-image composition
+- POST /api/style-transfer -> style transfer
+- POST /api/inpaint -> inpainting
+- POST /api/segment -> semantic segmentation (returns masks)
+- POST /api/detect -> object detection (returns bounding boxes)
+- POST /api/understand -> general VQA/captioning
+- GET  /api/styles -> list styles
+- GET  /api/prompts -> list prompt templates
+- GET  /api/workflows -> list workflows
+- GET  /api/session/{id}/stats -> session token and cost stats
+
+Models & Limits:
+- Gemini models used for specific tasks; defaults chosen per-task in code.
+- Multi-image limit: 14 input images for composition (Gemini 3 Pro constraint).
+- Masks: segmentation returns PNG base64 masks or fallback bounding-box masks created locally.
+- Resolutions: supports generation hints up to 4K (prompt-guided). Exact pixel sizes depend on the model capabilities.
+
+Cost & Tokens:
+- Token usage extracted from Gemini responses; cost calculated via `backend/app/utils/cost_calculator.py`.
+- Session aggregation tracks total input/output tokens and total estimated cost.
+
+Security & Secrets:
+- The Gemini API key must be provided via `GEMINI_API_KEY_FILE`, Docker secret `/run/secrets/gemini_api_key`, local `secrets/gemini_api_key.txt`, or `GEMINI_API_KEY` env var.
+
+Integration Notes:
+- `gemini_service.py` centralizes SDK calls; update `_get_generation_config` for new model params.
+- `image_utils.py` handles base64 conversions and mask resizing/expansion routines.
+
+Deployment:
+- Recommended using the provided `docker-compose.yml` with a secrets mechanism for the API key and separate networks for frontend/backend.

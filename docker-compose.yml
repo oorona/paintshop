@@ -1,0 +1,52 @@
+
+networks:
+  internet:
+    external: true
+    name: internet
+
+secrets:
+  gemini_api_key:
+    file: ./secrets/gemini_api_key.txt
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: gemini-editor-backend
+    restart: unless-stopped
+    networks:
+      - internet
+    secrets:
+      - gemini_api_key
+    environment:
+      - GEMINI_API_KEY_FILE=/run/secrets/gemini_api_key
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data/uploads:/app/uploads
+      - ./data/generated:/app/generated
+      - ./data/sessions:/app/sessions
+      - ./data/memes:/app/memes
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000
+    container_name: gemini-editor-frontend
+    restart: unless-stopped
+    networks:
+      - internet
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
