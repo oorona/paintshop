@@ -50,3 +50,9 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=internet"
+      - "traefik.http.routers.paintshop.rule=Host(`${PAINTSHOP_HOST}`)"
+      - "traefik.http.routers.paintshop.entrypoints=web"
+      - "traefik.http.services.paintshop.loadbalancer.server.port=80"

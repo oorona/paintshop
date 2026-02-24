@@ -30,3 +30,20 @@ Other configuration hints
 
 Security
 - Never commit your API key to source control. Use Docker secrets or environment variables in production.
+
+Traefik / Domain
+- The Compose setup uses Traefik for HTTP routing. The frontend service reads the external host from an environment variable so the domain is not hard-coded in `docker-compose.yml`.
+- Define the domain in a `.env` file at the repository root (Docker Compose will automatically load it). Example `.env`:
+
+```env
+PAINTSHOP_HOST=paintshop.home.iktdts.com
+```
+
+- The frontend service in `docker-compose.yml` uses `PAINTSHOP_HOST` in the Traefik `Host()` rule. To enable HTTPS with Traefik's `websecure` entrypoint and automatic certificates (e.g. Let's Encrypt), add the following labels alongside the router definition:
+
+```yaml
+traefik.http.routers.paintshop.entrypoints=websecure
+traefik.http.routers.paintshop.tls=true
+```
+
+- If you want Traefik to manage both frontend and backend routing, add similar router/service labels to the `backend` service and set appropriate `server.port` values.
