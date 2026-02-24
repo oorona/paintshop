@@ -19,8 +19,7 @@ import ImageUploadModal from './components/Modals/ImageUploadModal';
 import UrlImportModal from './components/Modals/UrlImportModal';
 import { useEditorStore } from './stores/editorStore';
 import { useStyleStore } from './stores/styleStore';
-
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
+import { API_BASE } from './config/api';
 
 function App() {
   const { activePanel, isLoading, loadingMessage, activeModal, closeModal } = useEditorStore();

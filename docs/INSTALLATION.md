@@ -16,7 +16,7 @@ docker-compose up -d
 ```
 
 3. Ensure the Gemini API key is provided to the backend via one of the supported methods (see configuration document).
-4. Open the frontend at http://localhost:3000
+4. Open the frontend through Traefik at `https://${PAINTSHOP_HOST}`.
 
 Development (backend)
 1. Create a Python virtual environment and install dependencies:

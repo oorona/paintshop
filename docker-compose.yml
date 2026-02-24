@@ -3,6 +3,9 @@ networks:
   internet:
     external: true
     name: internet
+  intranet:
+    external: true
+    name: intranet
 
 secrets:
   gemini_api_key:
@@ -16,7 +19,7 @@ services:
     container_name: paintshop-backend
     restart: unless-stopped
     networks:
-      - internet
+      - intranet
     secrets:
       - gemini_api_key
     environment:
@@ -27,10 +30,8 @@ services:
       - ./data/generated:/app/generated
       - ./data/sessions:/app/sessions
       - ./data/memes:/app/memes
-    ports:
-      - "8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -39,14 +40,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        - VITE_API_URL=http://localhost:8000
     container_name: paintshop-frontend
     restart: unless-stopped
     networks:
       - internet
-    ports:
-      - "3000:80"
+      - intranet
     depends_on:
       backend:
         condition: service_healthy
@@ -54,5 +52,6 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=internet"
       - "traefik.http.routers.paintshop.rule=Host(`${PAINTSHOP_HOST}`)"
-      - "traefik.http.routers.paintshop.entrypoints=web"
+      - "traefik.http.routers.paintshop.entrypoints=websecure"
+      - "traefik.http.routers.paintshop.tls=true"
       - "traefik.http.services.paintshop.loadbalancer.server.port=80"

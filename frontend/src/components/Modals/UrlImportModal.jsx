@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { Link, X, Loader2 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
+import { API_BASE } from '../../config/api';
 import toast from 'react-hot-toast';
-
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
 
 function UrlImportModal({ onClose }) {
   const [url, setUrl] = useState('');

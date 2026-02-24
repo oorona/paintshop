@@ -21,7 +21,9 @@ Storage & data
 - `data/` holds generated outputs, meme assets, and session files used during local development.
 
 Networking & deployment
-- `docker-compose.yml` defines two networks (internet-facing for frontend, intranet for backend). The backend is intended to be isolated behind a reverse proxy in production.
+- `docker-compose.yml` uses `internet` (Traefik-facing) and `intranet` (internal service traffic).
+- Frontend is attached to both networks and proxies `/api/*` to backend over `intranet`.
+- Backend is attached only to `intranet` and is not exposed directly to the public network.
 
 Extensibility
 - Model support is implemented via enumerations and `GeminiService` configuration. To add new models, update `backend/app/models/schemas.py` and adapt the `_get_generation_config` logic.

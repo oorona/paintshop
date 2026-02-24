@@ -27,6 +27,7 @@ Docker / Compose
 Other configuration hints
 - Logging: backend prints diagnostic messages to stdout. Configure container logging drivers as needed.
 - Cost & billing parameters live in `backend/app/utils/cost_calculator.py`—update unit prices there if you want custom estimates.
+- Frontend API base: optional `VITE_API_BASE` (defaults to `/api`). Keep it relative when running behind Traefik.
 
 Security
 - Never commit your API key to source control. Use Docker secrets or environment variables in production.
@@ -46,4 +47,6 @@ traefik.http.routers.paintshop.entrypoints=websecure
 traefik.http.routers.paintshop.tls=true
 ```
 
-- If you want Traefik to manage both frontend and backend routing, add similar router/service labels to the `backend` service and set appropriate `server.port` values.
+Internal API routing
+- The frontend container proxies `/api/*` to `http://backend:8000` over the internal Docker `intranet` network.
+- Browser requests should stay same-origin (`/api/...`) so no domain or backend host is hard-coded in frontend code.

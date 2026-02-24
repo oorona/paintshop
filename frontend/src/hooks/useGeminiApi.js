@@ -1,11 +1,8 @@
 import { useCallback } from 'react';
 import { useSessionStore } from '../stores/sessionStore';
 import { useEditorStore } from '../stores/editorStore';
+import { API_BASE } from '../config/api';
 import toast from 'react-hot-toast';
-
-// Use environment variable for API base URL
-// VITE_API_URL should be http://localhost:8000 (backend adds /api prefix)
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
 
 export function useGeminiApi() {
   const {

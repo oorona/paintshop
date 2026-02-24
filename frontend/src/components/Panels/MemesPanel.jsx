@@ -3,10 +3,9 @@ import { Image, Search, Plus, Download } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import { useStyleStore } from '../../stores/styleStore';
 import { base64ToUrl } from '../../utils/imageUtils';
+import { API_BASE } from '../../config/api';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-
-const API_BASE = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api`;
 
 function MemesPanel() {
   const [searchQuery, setSearchQuery] = useState('');
