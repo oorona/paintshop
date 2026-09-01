@@ -7,6 +7,7 @@ function Canvas() {
   const overlayRef = useRef(null);
   const containerRef = useRef(null);
   const {
+    canvas,
     layers,
     activeLayerId,
     setActiveLayerId,
@@ -26,11 +27,11 @@ function Canvas() {
 
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [canvasSize, setCanvasSize] = useState({ width: 1024, height: 1024 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [isErasing, setIsErasing] = useState(false);
   const [startPoint, setStartPoint] = useState(null);
   const [lastPoint, setLastPoint] = useState(null);
+  const canvasSize = canvas || { width: 1024, height: 1024 };
 
   // Get visible layers
   const visibleLayers = layers.filter(l => l.visible).sort((a, b) => a.order - b.order);
@@ -189,18 +190,6 @@ function Canvas() {
     }
   };
 
-  // Update canvas size based on active layer
-  useEffect(() => {
-    const activeLayer = layers.find(l => l.id === activeLayerId);
-    if (activeLayer && activeLayer.image_base64) {
-      const img = new Image();
-      img.onload = () => {
-        setCanvasSize({ width: img.width, height: img.height });
-      };
-      img.src = base64ToUrl(activeLayer.image_base64);
-    }
-  }, [activeLayerId, layers]);
-
   // Sync overlay canvas size
   useEffect(() => {
     const overlay = overlayRef.current;
@@ -260,10 +249,19 @@ function Canvas() {
       >
         {/* Canvas Background */}
         <div
-          className="absolute inset-0 bg-white rounded shadow-2xl"
+          className="absolute inset-0 rounded shadow-2xl border border-editor-border"
           style={{
             width: canvasSize.width,
             height: canvasSize.height,
+            backgroundColor: '#111111',
+            backgroundImage: `
+              linear-gradient(45deg, #1b1b1b 25%, transparent 25%),
+              linear-gradient(-45deg, #1b1b1b 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, #1b1b1b 75%),
+              linear-gradient(-45deg, transparent 75%, #1b1b1b 75%)
+            `,
+            backgroundSize: '20px 20px',
+            backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px',
           }}
         />
 

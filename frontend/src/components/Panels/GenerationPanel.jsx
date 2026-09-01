@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles, History, Star, ChevronDown, Plus, Square } from 'lucide-react';
 import { useGeminiApi } from '../../hooks/useGeminiApi';
 import { useEditorStore } from '../../stores/editorStore';
+import { useSessionStore } from '../../stores/sessionStore';
 import { useStyleStore } from '../../stores/styleStore';
+import { getClosestAspectRatio, getImageDimensions } from '../../utils/imageUtils';
 import clsx from 'clsx';
 
 // Predefined canvas sizes
@@ -28,13 +30,18 @@ function GenerationPanel() {
   const [showStyles, setShowStyles] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showNewCanvas, setShowNewCanvas] = useState(false);
-  const [canvasSize, setCanvasSize] = useState(CANVAS_SIZES[1]);
+  const [selectedCanvasSize, setSelectedCanvasSize] = useState(CANVAS_SIZES[1]);
   const [canvasColor, setCanvasColor] = useState(CANVAS_COLORS[0]);
   const [customWidth, setCustomWidth] = useState('');
   const [customHeight, setCustomHeight] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [thinkingStream, setThinkingStream] = useState('');
+  const [streamStatus, setStreamStatus] = useState('');
+  const thoughtBoxRef = useRef(null);
 
-  const { generateImage } = useGeminiApi();
-  const { addLayer, layers } = useEditorStore();
+  const { generateImageStream } = useGeminiApi();
+  const { addLayer, layers, setCanvasSize } = useEditorStore();
+  const { setAspectRatio } = useSessionStore();
   const {
     styles,
     styleCategories,
@@ -48,14 +55,35 @@ function GenerationPanel() {
 
   const selectedStyle = styles.find(s => s.id === selectedStyleId);
 
+  useEffect(() => {
+    if (thoughtBoxRef.current) {
+      thoughtBoxRef.current.scrollTop = thoughtBoxRef.current.scrollHeight;
+    }
+  }, [thinkingStream]);
+
   const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+    if (!prompt.trim() || isGenerating) return;
 
     try {
+      setIsGenerating(true);
+      setThinkingStream('');
+      setStreamStatus('Waiting for thinking stream...');
       addToPromptHistory(prompt);
-      const result = await generateImage(prompt, selectedStyleId);
+      const result = await generateImageStream(prompt, selectedStyleId, {
+        onThought: (text) => {
+          setStreamStatus('Thinking...');
+          setThinkingStream((current) => current + text);
+        },
+        onResult: () => {
+          setStreamStatus('Rendering final image...');
+        }
+      });
 
       if (result.success && result.image_base64) {
+        const { width, height } = await getImageDimensions(result.image_base64);
+        setCanvasSize(width, height);
+        setAspectRatio(getClosestAspectRatio(width, height));
+
         addLayer({
           id: `layer-${Date.now()}`,
           name: `Generated: ${prompt.substring(0, 20)}...`,
@@ -69,12 +97,15 @@ function GenerationPanel() {
       }
     } catch (error) {
       console.error('Generation failed:', error);
+      setStreamStatus(error.message || 'Generation failed');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
   const createNewCanvas = () => {
-    const width = customWidth ? parseInt(customWidth) : canvasSize.width;
-    const height = customHeight ? parseInt(customHeight) : canvasSize.height;
+    const width = customWidth ? parseInt(customWidth) : selectedCanvasSize.width;
+    const height = customHeight ? parseInt(customHeight) : selectedCanvasSize.height;
 
     if (width < 1 || height < 1 || width > 4096 || height > 4096) {
       alert('Canvas size must be between 1 and 4096 pixels');
@@ -96,6 +127,8 @@ function GenerationPanel() {
     }
 
     const base64 = canvas.toDataURL('image/png').split(',')[1];
+    setCanvasSize(width, height);
+    setAspectRatio(getClosestAspectRatio(width, height));
 
     addLayer({
       id: `layer-${Date.now()}`,
@@ -154,13 +187,13 @@ function GenerationPanel() {
                     <button
                       key={size.label}
                       onClick={() => {
-                        setCanvasSize(size);
+                        setSelectedCanvasSize(size);
                         setCustomWidth('');
                         setCustomHeight('');
                       }}
                       className={clsx(
                         'p-2 text-xs rounded transition-colors',
-                        canvasSize.label === size.label && !customWidth
+                        selectedCanvasSize.label === size.label && !customWidth
                           ? 'bg-editor-accent text-white'
                           : 'bg-editor-panel hover:bg-editor-hover'
                       )}
@@ -277,6 +310,29 @@ function GenerationPanel() {
             Press Ctrl+Enter to generate
           </p>
         </div>
+
+        {(isGenerating || thinkingStream || streamStatus) && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="label">Thinking Process</label>
+              <span className="text-[10px] text-gray-500">{streamStatus || 'Idle'}</span>
+            </div>
+            <div
+              ref={thoughtBoxRef}
+              className="bg-editor-bg border border-editor-border rounded-lg p-3 min-h-[120px] max-h-56 overflow-y-auto"
+            >
+              {thinkingStream ? (
+                <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono leading-5">
+                  {thinkingStream}
+                </pre>
+              ) : (
+                <p className="text-xs text-gray-500">
+                  {streamStatus || 'Thoughts will appear here while the model is generating.'}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Prompt History */}
         {showHistory && promptHistory.length > 0 && (
@@ -409,11 +465,11 @@ function GenerationPanel() {
       <div className="p-4 border-t border-editor-border">
         <button
           onClick={handleGenerate}
-          disabled={!prompt.trim()}
+          disabled={!prompt.trim() || isGenerating}
           className="btn-primary w-full flex items-center justify-center gap-2"
         >
           <Sparkles size={18} />
-          Generate Image
+          {isGenerating ? 'Generating...' : 'Generate Image'}
         </button>
       </div>
     </div>

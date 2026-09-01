@@ -6,6 +6,13 @@ import clsx from 'clsx';
 
 // All available models with their info
 const MODEL_INFO = {
+  'gemini-3.1-flash-image-preview': {
+    name: 'Gemini 3.1 Flash Image',
+    shortName: '3.1 Flash',
+    description: 'Fast generation and editing',
+    speed: 'fast',
+    quality: 'good'
+  },
   'gemini-2.5-flash-image': {
     name: 'Gemini 2.5 Flash Image',
     shortName: 'Flash Image',
@@ -47,12 +54,12 @@ const MODEL_INFO = {
 // First model in array is the default/preferred
 const PANEL_MODEL_CONFIG = {
   'generate': {
-    models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    default: 'gemini-2.5-flash-image'
+    models: ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
+    default: 'gemini-3.1-flash-image-preview'
   },
   'edit': {
-    models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    default: 'gemini-2.5-flash-image'
+    models: ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
+    default: 'gemini-3.1-flash-image-preview'
   },
   'segment': {
     models: ['gemini-2.5-flash'],  // Only gemini-2.5-flash returns actual masks
@@ -71,17 +78,27 @@ const PANEL_MODEL_CONFIG = {
     default: 'gemini-3-pro-preview'
   },
   'workflows': {
-    models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    default: 'gemini-2.5-flash-image'
+    models: ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
+    default: 'gemini-3.1-flash-image-preview'
   },
   'memes': {
-    models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    default: 'gemini-2.5-flash-image'
+    models: ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
+    default: 'gemini-3.1-flash-image-preview'
   },
   'text': {
-    models: ['gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
-    default: 'gemini-2.5-flash-image'
+    models: ['gemini-3.1-flash-image-preview', 'gemini-2.5-flash-image', 'gemini-3-pro-image-preview'],
+    default: 'gemini-3.1-flash-image-preview'
   }
+};
+
+const IMAGE_SIZE_OPTIONS = {
+  'gemini-3.1-flash-image-preview': ['512', '1K', '2K', '4K'],
+  'gemini-3-pro-image-preview': ['1K', '2K', '4K'],
+  'gemini-2.5-flash-image': ['1K', '2K']
+};
+
+const THINKING_LEVEL_OPTIONS = {
+  'gemini-3.1-flash-image-preview': ['minimal', 'high']
 };
 
 function ModelSelector() {
@@ -108,17 +125,28 @@ function ModelSelector() {
     }
   }, [activePanel, availableModels, selectedModel, setSelectedModel, panelConfig.default]);
 
-  const currentModel = MODEL_INFO[selectedModel] || MODEL_INFO['gemini-2.5-flash-image'];
+  const currentModel = MODEL_INFO[selectedModel] || MODEL_INFO['gemini-3.1-flash-image-preview'];
 
   const aspectRatios = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
-  const imageSizes = ['1K', '2K', '4K'];
-  const thinkingLevels = ['minimal', 'low', 'medium', 'high'];
+  const imageSizes = IMAGE_SIZE_OPTIONS[selectedModel] || ['1K', '2K'];
+  const thinkingLevels = THINKING_LEVEL_OPTIONS[selectedModel] || ['minimal', 'low', 'medium', 'high'];
   const mediaResolutions = ['low', 'medium', 'high'];
 
   // Determine which options to show based on model
   const isImageModel = selectedModel.includes('image');
   const supportsGrounding = selectedModel === 'gemini-3-pro-image-preview';
-  const supports4K = selectedModel === 'gemini-3-pro-image-preview';
+
+  useEffect(() => {
+    if (isImageModel && !imageSizes.includes(imageSize)) {
+      setImageSize(imageSizes[0]);
+    }
+  }, [isImageModel, imageSize, imageSizes, setImageSize]);
+
+  useEffect(() => {
+    if (!thinkingLevels.includes(thinkingLevel)) {
+      setThinkingLevel(thinkingLevels[0]);
+    }
+  }, [thinkingLevels, thinkingLevel, setThinkingLevel]);
 
   return (
     <div className="relative">
@@ -206,13 +234,11 @@ function ModelSelector() {
                       <button
                         key={size}
                         onClick={() => setImageSize(size)}
-                        disabled={size === '4K' && !supports4K}
                         className={clsx(
                           'flex-1 py-1.5 text-sm rounded transition-colors',
                           imageSize === size
                             ? 'bg-editor-accent text-white'
-                            : 'bg-editor-bg hover:bg-editor-hover text-gray-400',
-                          size === '4K' && !supports4K && 'opacity-50 cursor-not-allowed'
+                            : 'bg-editor-bg hover:bg-editor-hover text-gray-400'
                         )}
                       >
                         {size}
@@ -243,7 +269,9 @@ function ModelSelector() {
                 ))}
               </div>
               <p className="text-[10px] text-gray-500 mt-1">
-                Higher = better quality, slower response
+                {selectedModel === 'gemini-3.1-flash-image-preview'
+                  ? 'Gemini 3.1 Flash Image supports minimal and high thinking'
+                  : 'Higher = better quality, slower response'}
               </p>
             </div>
 

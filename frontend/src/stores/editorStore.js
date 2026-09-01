@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+const DEFAULT_CANVAS = { width: 1024, height: 1024 };
+
 // Helper to create a white canvas as base64
 const createWhiteCanvas = (width = 1024, height = 1024) => {
   const canvas = document.createElement('canvas');
@@ -25,8 +27,9 @@ const initialLayer = {
 
 export const useEditorStore = create((set, get) => ({
   // Canvas state
-  canvas: null,
+  canvas: DEFAULT_CANVAS,
   setCanvas: (canvas) => set({ canvas }),
+  setCanvasSize: (width, height) => set({ canvas: { width, height } }),
 
   // Project state
   project: null,
@@ -60,6 +63,7 @@ export const useEditorStore = create((set, get) => ({
         image_base64: whiteCanvas
       };
       set({
+        canvas: { width, height },
         layers: [bgLayer],
         activeLayerId: bgLayer.id
       });
@@ -69,10 +73,16 @@ export const useEditorStore = create((set, get) => ({
   setActiveLayerId: (id) => set({ activeLayerId: id }),
 
   // Clear all layers
-  clearLayers: () => set({ layers: [], activeLayerId: null, hasUnsavedChanges: false, savedLayerSnapshot: null }),
+  clearLayers: () => set({
+    canvas: DEFAULT_CANVAS,
+    layers: [],
+    activeLayerId: null,
+    hasUnsavedChanges: false,
+    savedLayerSnapshot: null
+  }),
 
   // Load image as base layer, clearing existing layers
-  loadImage: (imageBase64, name = 'Image') => {
+  loadImage: (imageBase64, name = 'Image', width = DEFAULT_CANVAS.width, height = DEFAULT_CANVAS.height) => {
     const layerId = `layer-${Date.now()}`;
     const newLayers = [{
       id: layerId,
@@ -85,6 +95,7 @@ export const useEditorStore = create((set, get) => ({
       order: 0
     }];
     set({
+      canvas: { width, height },
       layers: newLayers,
       activeLayerId: layerId,
       hasUnsavedChanges: false,

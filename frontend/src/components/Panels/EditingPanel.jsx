@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Wand2, Image, Layers, Plus } from 'lucide-react';
 import { useGeminiApi } from '../../hooks/useGeminiApi';
 import { useEditorStore } from '../../stores/editorStore';
+import { useSessionStore } from '../../stores/sessionStore';
 import { useStyleStore } from '../../stores/styleStore';
-import { base64ToUrl } from '../../utils/imageUtils';
+import { base64ToUrl, getClosestAspectRatio, getImageDimensions } from '../../utils/imageUtils';
 import clsx from 'clsx';
 
 function EditingPanel() {
@@ -12,7 +13,8 @@ function EditingPanel() {
   const [selectedImages, setSelectedImages] = useState([]);
 
   const { editImage, multiImageEdit, inpaint, styleTransfer } = useGeminiApi();
-  const { layers, activeLayerId, addLayer } = useEditorStore();
+  const { layers, activeLayerId, addLayer, setCanvasSize } = useEditorStore();
+  const { setAspectRatio } = useSessionStore();
   const { styles, styleCategories, selectedStyleId, setSelectedStyleId, promptTemplates } = useStyleStore();
 
   const activeLayer = layers.find(l => l.id === activeLayerId);
@@ -25,6 +27,10 @@ function EditingPanel() {
       const result = await editImage(prompt, activeLayer.image_base64, null, selectedStyleId);
 
       if (result.success && result.image_base64) {
+        const { width, height } = await getImageDimensions(result.image_base64);
+        setCanvasSize(width, height);
+        setAspectRatio(getClosestAspectRatio(width, height));
+
         addLayer({
           id: `layer-${Date.now()}`,
           name: `Edited: ${prompt.substring(0, 20)}...`,
@@ -49,6 +55,10 @@ function EditingPanel() {
       const result = await multiImageEdit(prompt, images, selectedStyleId);
 
       if (result.success && result.image_base64) {
+        const { width, height } = await getImageDimensions(result.image_base64);
+        setCanvasSize(width, height);
+        setAspectRatio(getClosestAspectRatio(width, height));
+
         addLayer({
           id: `layer-${Date.now()}`,
           name: `Combined: ${prompt.substring(0, 20)}...`,

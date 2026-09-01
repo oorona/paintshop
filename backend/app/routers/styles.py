@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+import time
 from typing import List, Optional, Dict, Any
 import json
 from pathlib import Path
@@ -547,11 +548,13 @@ async def delete_template(template_id: str):
 @router.post("/prompt/assist", response_model=GenerationResponse)
 async def assist_prompt(request: PromptAssistRequest):
     """Use LLM to help create better prompts."""
+    started_at = time.perf_counter()
     result = await gemini_service.assist_prompt(
         context=request.context,
         task_type=request.task_type,
         model=request.model
     )
+    result.duration_ms = round((time.perf_counter() - started_at) * 1000)
 
     if result.success and result.token_usage and result.cost_estimate:
         session_id = session_service.get_or_create_session()

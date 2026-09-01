@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+import time
 
 from ..models.schemas import (
     SegmentationRequest, ObjectDetectionRequest, ImageUnderstandingRequest,
@@ -61,12 +62,14 @@ async def detect_objects(request: ObjectDetectionRequest):
 @router.post("/understand", response_model=GenerationResponse)
 async def understand_image(request: ImageUnderstandingRequest):
     """General image understanding - captioning, VQA, analysis."""
+    started_at = time.perf_counter()
     result = await gemini_service.understand_image(
         image_data=request.image_data,
         prompt=request.prompt,
         model=request.model,
         media_resolution=request.media_resolution
     )
+    result.duration_ms = round((time.perf_counter() - started_at) * 1000)
 
     if result.success and result.token_usage and result.cost_estimate:
         session_id = session_service.get_or_create_session()

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import Header from './components/UI/Header';
 import Sidebar from './components/UI/Sidebar';
@@ -24,63 +24,40 @@ import { API_BASE } from './config/api';
 function App() {
   const { activePanel, isLoading, loadingMessage, activeModal, closeModal } = useEditorStore();
   const { setStyles, setStyleCategories, setPromptTemplates, setTemplateCategories, setWorkflows, setMemeTemplates } = useStyleStore();
-  const [initialized, setInitialized] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        // Fetch styles
-        const stylesRes = await fetch(`${API_BASE}/styles`);
-        if (stylesRes.ok) {
-          const styles = await stylesRes.json();
-          setStyles(styles);
-        }
+      const resources = [
+        { url: `${API_BASE}/styles`, setter: setStyles, label: 'styles' },
+        { url: `${API_BASE}/styles/categories`, setter: setStyleCategories, label: 'style categories' },
+        { url: `${API_BASE}/prompts`, setter: setPromptTemplates, label: 'prompt templates' },
+        { url: `${API_BASE}/prompts/categories`, setter: setTemplateCategories, label: 'template categories' },
+        { url: `${API_BASE}/workflows`, setter: setWorkflows, label: 'workflows' },
+        { url: `${API_BASE}/memes`, setter: setMemeTemplates, label: 'memes' },
+      ];
 
-        // Fetch style categories
-        const catRes = await fetch(`${API_BASE}/styles/categories`);
-        if (catRes.ok) {
-          const categories = await catRes.json();
-          setStyleCategories(categories);
-        }
+      const results = await Promise.allSettled(
+        resources.map(async ({ url, setter, label }) => {
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${label}`);
+          }
 
-        // Fetch prompt templates
-        const templatesRes = await fetch(`${API_BASE}/prompts`);
-        if (templatesRes.ok) {
-          const templates = await templatesRes.json();
-          setPromptTemplates(templates);
-        }
+          const data = await response.json();
+          setter(data);
+        })
+      );
 
-        // Fetch template categories
-        const templateCatRes = await fetch(`${API_BASE}/prompts/categories`);
-        if (templateCatRes.ok) {
-          const categories = await templateCatRes.json();
-          setTemplateCategories(categories);
+      results.forEach((result) => {
+        if (result.status === 'rejected') {
+          console.error('Bootstrap data fetch failed:', result.reason);
         }
-
-        // Fetch workflows
-        const workflowsRes = await fetch(`${API_BASE}/workflows`);
-        if (workflowsRes.ok) {
-          const workflows = await workflowsRes.json();
-          setWorkflows(workflows);
-        }
-
-        // Fetch meme templates
-        const memesRes = await fetch(`${API_BASE}/memes`);
-        if (memesRes.ok) {
-          const memes = await memesRes.json();
-          setMemeTemplates(memes);
-        }
-
-        setInitialized(true);
-      } catch (error) {
-        console.error('Failed to fetch initial data:', error);
-        setInitialized(true);
-      }
+      });
     };
 
     fetchData();
-  }, []);
+  }, [setStyles, setStyleCategories, setPromptTemplates, setTemplateCategories, setWorkflows, setMemeTemplates]);
 
   const renderPanel = () => {
     switch (activePanel) {
@@ -106,17 +83,6 @@ function App() {
         return <GenerationPanel />;
     }
   };
-
-  if (!initialized) {
-    return (
-      <div className="h-screen w-screen bg-editor-bg flex items-center justify-center">
-        <div className="text-center">
-          <div className="spinner mx-auto mb-4" />
-          <p className="text-gray-400">Loading Gemini AI Image Editor...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="h-screen w-screen bg-editor-bg flex flex-col overflow-hidden">

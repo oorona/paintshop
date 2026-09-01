@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, X, Image, Layers, Replace } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
-import { fileToBase64 } from '../../utils/imageUtils';
+import { fileToBase64, getImageDimensions } from '../../utils/imageUtils';
 import UnsavedChangesModal from './UnsavedChangesModal';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
@@ -20,31 +20,26 @@ function ImageUploadModal({ onClose }) {
       const file = acceptedFiles[i];
       try {
         const base64 = await fileToBase64(file);
+        const { width, height } = await getImageDimensions(base64);
 
-        // Get image dimensions
-        const img = new window.Image();
-        img.src = `data:${file.type};base64,${base64}`;
+        if (mode === 'replace' && i === 0 && acceptedFiles.length === 1) {
+          // Replace mode: clear canvas and load as base layer
+          loadImage(base64, file.name, width, height);
+        } else {
+          // Add mode: add as new layers
+          addLayer({
+            id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: file.name,
+            type: 'image',
+            image_base64: base64,
+            visible: true,
+            opacity: 1,
+            blend_mode: 'normal',
+            order: layers.length + i
+          });
+        }
 
-        img.onload = () => {
-          if (mode === 'replace' && i === 0 && acceptedFiles.length === 1) {
-            // Replace mode: clear canvas and load as base layer
-            loadImage(base64, file.name);
-          } else {
-            // Add mode: add as new layers
-            addLayer({
-              id: `layer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              name: file.name,
-              type: 'image',
-              image_base64: base64,
-              visible: true,
-              opacity: 1,
-              blend_mode: 'normal',
-              order: layers.length + i
-            });
-          }
-
-          toast.success(`Uploaded: ${file.name}`);
-        };
+        toast.success(`Uploaded: ${file.name}`);
       } catch (error) {
         toast.error(`Failed to upload: ${file.name}`);
       }

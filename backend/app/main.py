@@ -56,6 +56,16 @@ async def list_models():
     return {
         "models": [
             {
+                "id": ModelType.GEMINI_31_FLASH_IMAGE.value,
+                "name": "Gemini 3.1 Flash Image",
+                "description": "Fast image generation and editing",
+                "capabilities": ["generate", "edit", "inpaint"],
+                "supports_grounding": False,
+                "max_images": 1,
+                "supported_sizes": ["512", "1K", "2K", "4K"],
+                "supported_aspect_ratios": [ar.value for ar in AspectRatio],
+            },
+            {
                 "id": ModelType.GEMINI_25_FLASH_IMAGE.value,
                 "name": "Gemini 2.5 Flash Image",
                 "description": "Fast image generation and editing",

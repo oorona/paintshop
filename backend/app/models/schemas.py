@@ -5,6 +5,7 @@ from datetime import datetime
 
 
 class ModelType(str, Enum):
+    GEMINI_31_FLASH_IMAGE = "gemini-3.1-flash-image-preview"
     GEMINI_25_FLASH_IMAGE = "gemini-2.5-flash-image"
     GEMINI_25_FLASH_PREVIEW = "gemini-2.5-flash"  # For segmentation
     GEMINI_3_PRO_IMAGE = "gemini-3-pro-image-preview"
@@ -26,6 +27,7 @@ class AspectRatio(str, Enum):
 
 
 class ImageSize(str, Enum):
+    SIZE_512 = "512"
     SIZE_1K = "1K"
     SIZE_2K = "2K"
     SIZE_4K = "4K"
@@ -46,7 +48,7 @@ class MediaResolution(str, Enum):
 
 class GenerateImageRequest(BaseModel):
     prompt: str
-    model: ModelType = ModelType.GEMINI_25_FLASH_IMAGE
+    model: ModelType = ModelType.GEMINI_31_FLASH_IMAGE
     aspect_ratio: AspectRatio = AspectRatio.SQUARE
     image_size: ImageSize = ImageSize.SIZE_1K
     style_id: Optional[str] = None
@@ -58,7 +60,7 @@ class GenerateImageRequest(BaseModel):
 class EditImageRequest(BaseModel):
     prompt: str
     image_data: str  # Base64 encoded
-    model: ModelType = ModelType.GEMINI_25_FLASH_IMAGE
+    model: ModelType = ModelType.GEMINI_31_FLASH_IMAGE
     aspect_ratio: Optional[AspectRatio] = None
     image_size: Optional[ImageSize] = None
     style_id: Optional[str] = None
@@ -153,6 +155,7 @@ class GenerationResponse(BaseModel):
     success: bool
     image_base64: Optional[str] = None
     text_response: Optional[str] = None
+    duration_ms: Optional[int] = None
     token_usage: Optional[TokenUsage] = None
     cost_estimate: Optional[CostEstimate] = None
     grounding_metadata: Optional[Dict[str, Any]] = None

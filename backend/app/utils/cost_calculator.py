@@ -4,6 +4,12 @@ from ..models.schemas import ModelType, TokenUsage, CostEstimate
 # Pricing per 1M tokens (USD) - Updated for Gemini models
 # These are approximate and should be updated based on actual Google pricing
 PRICING: Dict[str, Dict[str, float]] = {
+    ModelType.GEMINI_31_FLASH_IMAGE.value: {
+        "input": 0.10,
+        "output": 0.40,
+        "image_input": 0.02,  # Per image
+        "image_output": 0.04,  # Per generated image
+    },
     ModelType.GEMINI_25_FLASH_IMAGE.value: {
         "input": 0.10,
         "output": 0.40,

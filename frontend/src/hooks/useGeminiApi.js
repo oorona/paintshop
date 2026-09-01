@@ -11,6 +11,15 @@ export function useGeminiApi() {
   } = useSessionStore();
   const { setLoading } = useEditorStore();
 
+  const formatDuration = useCallback((durationMs) => {
+    if (!durationMs || durationMs < 1000) {
+      return `${durationMs || 0}ms`;
+    }
+
+    const seconds = durationMs / 1000;
+    return seconds >= 10 ? `${seconds.toFixed(1)}s` : `${seconds.toFixed(2)}s`;
+  }, []);
+
   const handleResponse = useCallback(async (response, requestType, prompt) => {
     const data = await response.json();
 
@@ -27,6 +36,16 @@ export function useGeminiApi() {
     }
 
     return data;
+  }, [sessionId, setSessionId, updateStats, selectedModel]);
+
+  const handleStreamResult = useCallback((data, requestType, prompt) => {
+    if (data.session_id && !sessionId) {
+      setSessionId(data.session_id);
+    }
+
+    if (data.token_usage && data.cost_estimate) {
+      updateStats(data.token_usage, data.cost_estimate, requestType, selectedModel, prompt);
+    }
   }, [sessionId, setSessionId, updateStats, selectedModel]);
 
   const generateImage = useCallback(async (prompt, styleId = null) => {
@@ -50,7 +69,7 @@ export function useGeminiApi() {
       const data = await handleResponse(response, 'generate', prompt);
 
       if (data.success && data.image_base64) {
-        toast.success('Image generated!');
+        toast.success(`Image generated in ${formatDuration(data.duration_ms)}`);
         return data;
       } else {
         throw new Error(data.error || 'Generation failed');
@@ -61,7 +80,89 @@ export function useGeminiApi() {
     } finally {
       setLoading(false);
     }
-  }, [selectedModel, aspectRatio, imageSize, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse]);
+  }, [selectedModel, aspectRatio, imageSize, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse, formatDuration]);
+
+  const generateImageStream = useCallback(async (prompt, styleId = null, handlers = {}) => {
+    const { onThought, onSession, onResult } = handlers;
+
+    const response = await fetch(`${API_BASE}/generate/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        model: selectedModel,
+        aspect_ratio: aspectRatio,
+        image_size: imageSize,
+        style_id: styleId,
+        use_grounding: useGrounding,
+        thinking_level: thinkingLevel,
+        session_id: sessionId
+      })
+    });
+
+    if (!response.ok || !response.body) {
+      let message = 'Streaming generation failed';
+      try {
+        const data = await response.json();
+        message = data.error || message;
+      } catch {
+        // Keep fallback message
+      }
+      throw new Error(message);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const event = JSON.parse(line);
+
+        if (event.type === 'session') {
+          if (event.session_id && !sessionId) {
+            setSessionId(event.session_id);
+          }
+          onSession?.(event.session_id);
+        } else if (event.type === 'thought') {
+          onThought?.(event.text);
+        } else if (event.type === 'result') {
+          handleStreamResult(event.data, 'generate', prompt);
+          onResult?.(event.data);
+          if (event.data.success && event.data.image_base64) {
+            toast.success(`Image generated in ${formatDuration(event.data.duration_ms)}`);
+            return event.data;
+          }
+          throw new Error(event.data.error || 'Generation failed');
+        } else if (event.type === 'error') {
+          throw new Error(event.error || 'Streaming generation failed');
+        }
+      }
+
+      if (done) {
+        break;
+      }
+    }
+
+    throw new Error('Streaming generation ended without a final result');
+  }, [
+    selectedModel,
+    aspectRatio,
+    imageSize,
+    useGrounding,
+    thinkingLevel,
+    sessionId,
+    setSessionId,
+    handleStreamResult,
+    formatDuration
+  ]);
 
   const editImage = useCallback(async (prompt, imageData, maskData = null, styleId = null) => {
     setLoading(true, 'Editing image...');
@@ -74,6 +175,8 @@ export function useGeminiApi() {
           image_data: imageData,
           model: selectedModel,
           mask_data: maskData,
+          aspect_ratio: aspectRatio,
+          image_size: imageSize,
           style_id: styleId,
           use_grounding: useGrounding,
           thinking_level: thinkingLevel,
@@ -84,7 +187,7 @@ export function useGeminiApi() {
       const data = await handleResponse(response, 'edit', prompt);
 
       if (data.success && data.image_base64) {
-        toast.success('Image edited!');
+        toast.success(`Image edited in ${formatDuration(data.duration_ms)}`);
         return data;
       } else {
         throw new Error(data.error || 'Edit failed');
@@ -95,7 +198,7 @@ export function useGeminiApi() {
     } finally {
       setLoading(false);
     }
-  }, [selectedModel, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse]);
+  }, [selectedModel, aspectRatio, imageSize, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse, formatDuration]);
 
   const multiImageEdit = useCallback(async (prompt, images, styleId = null) => {
     setLoading(true, 'Processing multiple images...');
@@ -119,7 +222,7 @@ export function useGeminiApi() {
       const data = await handleResponse(response, 'multi_edit', prompt);
 
       if (data.success && data.image_base64) {
-        toast.success('Images combined!');
+        toast.success(`Images combined in ${formatDuration(data.duration_ms)}`);
         return data;
       } else {
         throw new Error(data.error || 'Multi-image edit failed');
@@ -130,7 +233,7 @@ export function useGeminiApi() {
     } finally {
       setLoading(false);
     }
-  }, [aspectRatio, imageSize, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse]);
+  }, [aspectRatio, imageSize, useGrounding, thinkingLevel, sessionId, setLoading, handleResponse, formatDuration]);
 
   const segmentObjects = useCallback(async (imageData, prompt = 'Detect and segment all objects') => {
     setLoading(true, 'Segmenting objects...');
@@ -239,7 +342,7 @@ export function useGeminiApi() {
       const data = await handleResponse(response, 'style_transfer', prompt);
 
       if (data.success && data.image_base64) {
-        toast.success('Style applied!');
+        toast.success(`Style applied in ${formatDuration(data.duration_ms)}`);
         return data;
       } else {
         throw new Error(data.error || 'Style transfer failed');
@@ -250,7 +353,7 @@ export function useGeminiApi() {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, handleResponse]);
+  }, [setLoading, handleResponse, formatDuration]);
 
   const inpaint = useCallback(async (imageData, maskData, prompt, preserveBackground = true) => {
     setLoading(true, 'Inpainting...');
@@ -270,7 +373,7 @@ export function useGeminiApi() {
       const data = await handleResponse(response, 'inpaint', prompt);
 
       if (data.success && data.image_base64) {
-        toast.success('Inpainting complete!');
+        toast.success(`Inpainting complete in ${formatDuration(data.duration_ms)}`);
         return data;
       } else {
         throw new Error(data.error || 'Inpainting failed');
@@ -281,7 +384,7 @@ export function useGeminiApi() {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, handleResponse]);
+  }, [setLoading, handleResponse, formatDuration]);
 
   const assistPrompt = useCallback(async (context, taskType = 'generate') => {
     setLoading(true, 'Creating prompt...');
@@ -315,6 +418,7 @@ export function useGeminiApi() {
 
   return {
     generateImage,
+    generateImageStream,
     editImage,
     multiImageEdit,
     segmentObjects,

@@ -20,6 +20,14 @@ from ..utils.image_utils import base64_to_bytes, bytes_to_base64, base64_to_imag
 class GeminiService:
     """Service for interacting with Google Gemini API for image operations."""
 
+    IMAGE_MODEL_SIZES = {
+        ModelType.GEMINI_31_FLASH_IMAGE: {ImageSize.SIZE_512, ImageSize.SIZE_1K, ImageSize.SIZE_2K, ImageSize.SIZE_4K},
+        ModelType.GEMINI_3_PRO_IMAGE: {ImageSize.SIZE_1K, ImageSize.SIZE_2K, ImageSize.SIZE_4K},
+        ModelType.GEMINI_25_FLASH_IMAGE: {ImageSize.SIZE_1K, ImageSize.SIZE_2K},
+    }
+    IMAGE_CONFIG_CLASS = getattr(types, "ImageConfig", None)
+    THINKING_CONFIG_CLASS = getattr(types, "ThinkingConfig", None)
+
     def __init__(self):
         self.client = None
         self._init_client()
@@ -61,19 +69,82 @@ class GeminiService:
         self,
         model: ModelType,
         aspect_ratio: Optional[AspectRatio] = None,
-        thinking_level: ThinkingLevel = ThinkingLevel.HIGH
+        image_size: Optional[ImageSize] = None,
+        thinking_level: ThinkingLevel = ThinkingLevel.HIGH,
+        include_thoughts: bool = False
     ) -> types.GenerateContentConfig:
         """Build generation config based on model and parameters."""
         config_dict = {
             "response_modalities": ["IMAGE", "TEXT"],
         }
 
-        # Add aspect ratio for image generation models
-        if aspect_ratio and model in [ModelType.GEMINI_25_FLASH_IMAGE, ModelType.GEMINI_3_PRO_IMAGE]:
-            # Note: Aspect ratio is typically handled via prompt or specific parameters
-            pass
+        if model in self.IMAGE_MODEL_SIZES:
+            if image_size and image_size not in self.IMAGE_MODEL_SIZES[model]:
+                supported = ", ".join(size.value for size in sorted(self.IMAGE_MODEL_SIZES[model], key=lambda item: item.value))
+                raise ValueError(f"{model.value} supports image sizes: {supported}")
+
+            image_config = {}
+            if aspect_ratio:
+                image_config["aspect_ratio"] = aspect_ratio.value
+            if image_size:
+                image_config["image_size"] = image_size.value
+
+            if image_config:
+                if self.IMAGE_CONFIG_CLASS is None:
+                    raise RuntimeError(
+                        "Installed google-genai SDK does not expose types.ImageConfig. "
+                        "The official Gemini image-generation API requires "
+                        "GenerateContentConfig(image_config=types.ImageConfig(...)). "
+                        "Redeploy the backend with google-genai==1.66.0."
+                    )
+                config_dict["image_config"] = self.IMAGE_CONFIG_CLASS(**image_config)
+
+        thinking_config = self._get_thinking_config(model, thinking_level, include_thoughts)
+        if thinking_config:
+            config_dict["thinking_config"] = thinking_config
 
         return types.GenerateContentConfig(**config_dict)
+
+    def _get_thinking_config(
+        self,
+        model: ModelType,
+        thinking_level: ThinkingLevel,
+        include_thoughts: bool
+    ) -> Optional[Any]:
+        """Build thinking config for models that expose controllable thinking."""
+        if model != ModelType.GEMINI_31_FLASH_IMAGE:
+            return None
+
+        normalized_level = "high" if thinking_level == ThinkingLevel.HIGH else "minimal"
+
+        if self.THINKING_CONFIG_CLASS is None:
+            payload = {}
+            if include_thoughts:
+                payload["include_thoughts"] = True
+            payload["thinking_level"] = normalized_level
+            return payload or None
+
+        try:
+            return self.THINKING_CONFIG_CLASS(
+                include_thoughts=include_thoughts,
+                thinking_level=normalized_level
+            )
+        except Exception:
+            pass
+
+        if include_thoughts:
+            try:
+                return self.THINKING_CONFIG_CLASS(include_thoughts=True)
+            except Exception:
+                return {"include_thoughts": True}
+
+        return None
+
+    def _build_generation_prompt(self, prompt: str, style_prompt: Optional[str] = None) -> str:
+        """Merge style prompt into the user prompt."""
+        if style_prompt:
+            return f"{style_prompt}. {prompt}"
+        return prompt
 
     def _extract_token_usage(self, response) -> TokenUsage:
         """Extract token usage from response."""
@@ -123,7 +194,7 @@ class GeminiService:
     async def generate_image(
         self,
         prompt: str,
-        model: ModelType = ModelType.GEMINI_25_FLASH_IMAGE,
+        model: ModelType = ModelType.GEMINI_31_FLASH_IMAGE,
         aspect_ratio: AspectRatio = AspectRatio.SQUARE,
         image_size: ImageSize = ImageSize.SIZE_1K,
         style_prompt: Optional[str] = None,
@@ -135,21 +206,8 @@ class GeminiService:
             return GenerationResponse(success=False, error="Gemini API not configured")
 
         try:
-            # Build the full prompt with style if provided
-            full_prompt = prompt
-            if style_prompt:
-                full_prompt = f"{style_prompt}. {prompt}"
-
-            # Add aspect ratio to prompt
-            full_prompt = f"{full_prompt}. Aspect ratio: {aspect_ratio.value}"
-
-            # Add size preference
-            if image_size == ImageSize.SIZE_4K:
-                full_prompt = f"{full_prompt}. Generate in 4K high resolution."
-            elif image_size == ImageSize.SIZE_2K:
-                full_prompt = f"{full_prompt}. Generate in 2K resolution."
-
-            config = self._get_generation_config(model, aspect_ratio, thinking_level)
+            full_prompt = self._build_generation_prompt(prompt, style_prompt)
+            config = self._get_generation_config(model, aspect_ratio, image_size, thinking_level)
 
             # Add grounding if requested (for Gemini 3 Pro Image)
             tools = []
@@ -181,8 +239,10 @@ class GeminiService:
         self,
         prompt: str,
         image_data: str,
-        model: ModelType = ModelType.GEMINI_25_FLASH_IMAGE,
+        model: ModelType = ModelType.GEMINI_31_FLASH_IMAGE,
         mask_data: Optional[str] = None,
+        aspect_ratio: Optional[AspectRatio] = None,
+        image_size: Optional[ImageSize] = None,
         style_prompt: Optional[str] = None,
         use_grounding: bool = False,
         thinking_level: ThinkingLevel = ThinkingLevel.HIGH
@@ -196,9 +256,7 @@ class GeminiService:
             image_bytes = base64_to_bytes(image_data)
 
             # Build the prompt
-            full_prompt = prompt
-            if style_prompt:
-                full_prompt = f"{style_prompt}. {prompt}"
+            full_prompt = self._build_generation_prompt(prompt, style_prompt)
 
             if mask_data:
                 full_prompt = f"{full_prompt}. Apply changes only to the masked area."
@@ -214,7 +272,7 @@ class GeminiService:
                 mask_bytes = base64_to_bytes(mask_data)
                 contents.insert(1, types.Part.from_bytes(data=mask_bytes, mime_type="image/png"))
 
-            config = self._get_generation_config(model, thinking_level=thinking_level)
+            config = self._get_generation_config(model, aspect_ratio, image_size, thinking_level)
 
             response = self.client.models.generate_content(
                 model=model.value,
@@ -243,6 +301,8 @@ class GeminiService:
         prompt: str,
         images: List[str],
         model: ModelType = ModelType.GEMINI_3_PRO_IMAGE,
+        aspect_ratio: Optional[AspectRatio] = None,
+        image_size: Optional[ImageSize] = None,
         style_prompt: Optional[str] = None,
         use_grounding: bool = False,
         thinking_level: ThinkingLevel = ThinkingLevel.HIGH
@@ -262,12 +322,10 @@ class GeminiService:
                 contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
 
             # Add prompt
-            full_prompt = prompt
-            if style_prompt:
-                full_prompt = f"{style_prompt}. {prompt}"
+            full_prompt = self._build_generation_prompt(prompt, style_prompt)
             contents.append(full_prompt)
 
-            config = self._get_generation_config(model, thinking_level=thinking_level)
+            config = self._get_generation_config(model, aspect_ratio, image_size, thinking_level)
 
             response = self.client.models.generate_content(
                 model=model.value,

@@ -1,17 +1,16 @@
 import React, { useState } from 'react';
 import { Menu, Save, Download, Upload, Link, Undo, Redo, ZoomIn, ZoomOut, Settings } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
-import { useSessionStore } from '../../stores/sessionStore';
 import ModelSelector from './ModelSelector';
 
 function Header() {
-  const { openModal, undo, redo, zoom, setZoom, layers } = useEditorStore();
-  const { selectedModel, setSelectedModel } = useSessionStore();
+  const { openModal, undo, redo, zoom, setZoom, layers, canvas: canvasSize } = useEditorStore();
   const [showSettings, setShowSettings] = useState(false);
 
   const handleSave = () => {
     // Export project as JSON
     const projectData = {
+      canvas: canvasSize,
       layers,
       exportedAt: new Date().toISOString()
     };
@@ -43,8 +42,8 @@ function Header() {
       firstImg.src = `data:image/png;base64,${visibleLayers[0].image_base64}`;
     });
 
-    canvas.width = firstImg.width;
-    canvas.height = firstImg.height;
+    canvas.width = canvasSize?.width || firstImg.width;
+    canvas.height = canvasSize?.height || firstImg.height;
 
     // Draw each layer from bottom to top
     for (const layer of visibleLayers) {

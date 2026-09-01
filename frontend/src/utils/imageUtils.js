@@ -8,6 +8,8 @@ export function base64ToBlob(base64, mimeType = 'image/png') {
   return new Blob([byteArray], { type: mimeType });
 }
 
+export const SUPPORTED_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'];
+
 export function base64ToUrl(base64, mimeType = 'image/png') {
   return `data:${mimeType};base64,${base64}`;
 }
@@ -53,6 +55,21 @@ export function getImageDimensions(base64) {
     };
     img.src = base64ToUrl(base64);
   });
+}
+
+export function getClosestAspectRatio(width, height) {
+  if (!width || !height) return '1:1';
+
+  const targetRatio = width / height;
+
+  return SUPPORTED_ASPECT_RATIOS.reduce((closest, ratio) => {
+    const [ratioWidth, ratioHeight] = ratio.split(':').map(Number);
+    const currentDelta = Math.abs((ratioWidth / ratioHeight) - targetRatio);
+    const closestParts = closest.split(':').map(Number);
+    const closestDelta = Math.abs((closestParts[0] / closestParts[1]) - targetRatio);
+
+    return currentDelta < closestDelta ? ratio : closest;
+  }, SUPPORTED_ASPECT_RATIOS[0]);
 }
 
 export async function resizeImage(base64, maxWidth, maxHeight, keepAspectRatio = true) {

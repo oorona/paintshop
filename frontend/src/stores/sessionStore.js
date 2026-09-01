@@ -40,10 +40,10 @@ export const useSessionStore = create(
       }),
 
       // Model settings
-      selectedModel: 'gemini-2.5-flash-image',
+      selectedModel: 'gemini-3.1-flash-image-preview',
       aspectRatio: '1:1',
       imageSize: '1K',
-      thinkingLevel: 'high',
+      thinkingLevel: 'minimal',
       mediaResolution: 'high',
       useGrounding: false,
 
@@ -56,6 +56,32 @@ export const useSessionStore = create(
     }),
     {
       name: 'gemini-editor-session',
+      version: 3,
+      migrate: (persistedState, version) => {
+        if (!persistedState) return persistedState;
+        if (version < 2 && persistedState.selectedModel === 'gemini-2.5-flash-image') {
+          return {
+            ...persistedState,
+            selectedModel: 'gemini-3.1-flash-image-preview',
+          };
+        }
+        if (persistedState.selectedModel === 'gemini-3.1-flash-image-previev') {
+          return {
+            ...persistedState,
+            selectedModel: 'gemini-3.1-flash-image-preview',
+          };
+        }
+        if (
+          persistedState.selectedModel === 'gemini-3.1-flash-image-preview' &&
+          !['minimal', 'high'].includes(persistedState.thinkingLevel)
+        ) {
+          return {
+            ...persistedState,
+            thinkingLevel: 'minimal',
+          };
+        }
+        return persistedState;
+      },
       partialize: (state) => ({
         sessionId: state.sessionId,
         selectedModel: state.selectedModel,
